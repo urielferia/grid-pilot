@@ -11,6 +11,7 @@ public sealed class Session : IDisposable
     public WorkbookProfile Profile=>state.Profile;
     public Session(IWorkbook workbook,string root,string original,WorkbookProfile profile)
     {
+        profile.ValidateDefinition();
         excel=workbook;directory=Path.Combine(root,Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);
         journal=new(Path.Combine(directory,"session.db"));
         original=Path.GetFullPath(original);var baseline=Path.Combine(directory,"base.xlsx");var draft=Path.Combine(directory,"draft.xlsx");
@@ -24,11 +25,14 @@ public sealed class Session : IDisposable
     {
         excel=workbook;directory=Path.GetFullPath(sessionDirectory);journal=new(Path.Combine(directory,"session.db"));
         state=journal.Get<SessionState>("session") ?? throw new InvalidOperationException("Sesión no encontrada.");
+        state.Profile.ValidateDefinition();
+        ValidateLocalPath(state.Draft);ValidateLocalPath(state.ValidCopy);
         // Only explicit recovery opens the last committed checkpoint. Never replay pending writes.
         File.Copy(state.ValidCopy,state.Draft,true);File.SetAttributes(state.Draft,FileAttributes.Normal);excel.Open(state.Draft);excel.Recalculate();
         Rules.Validate(excel.Snapshot(),state.Profile);state=state with{Blocked=false,Revision=excel.Snapshot().Revision};Editable=true;journal.RecoverPending();Persist();
     }
     void Persist()=>journal.Put("session",state);
+    void ValidateLocalPath(string path){var full=Path.GetFullPath(path);if(!full.StartsWith(directory+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)||!full.EndsWith(".xlsx",StringComparison.OrdinalIgnoreCase)||full.Equals(state.Original,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Ruta de recuperación fuera de la sesión.");}
     public WorkbookSnapshot Inspect(){lock(gate){return excel.Snapshot();}}
     public WorkbookSnapshot RecalculateValidate(){lock(gate){Ready();using var lease=excel.Exclusive();excel.Recalculate();var snapshot=excel.Snapshot();Rules.Validate(snapshot,state.Profile);return snapshot;}}
     void Ready(){if(!Editable)throw new InvalidOperationException("Libro solo para inspección: necesita un perfil compatible validado.");if(state.Blocked)throw new InvalidOperationException("Sesión bloqueada: recupere el último estado válido.");}
@@ -42,19 +46,20 @@ public sealed class Session : IDisposable
             using var lease=excel.Exclusive();var before=excel.Snapshot();if(before.Revision!=plan.SourceRevision)throw new InvalidOperationException("El borrador cambió. Revise y vuelva a interpretar la instrucción.");
             Rules.Validate(before,state.Profile);
             var checkpoint=Path.Combine(directory,$"before-{plan.OperationId}.xlsx");excel.SaveCopy(checkpoint);
-            var priorProfile=state.Profile.Copy();journal.Begin(plan);approval=null;
+            var priorProfile=state.Profile.Copy();var priorState=state with{Profile=priorProfile};journal.Begin(plan);approval=null;
             try
             {
                 foreach(var operation in plan.Operations)excel.Apply(operation,state.Profile);
                 excel.Recalculate();var after=excel.Snapshot();Rules.Validate(after,state.Profile);
                 var committed=Path.Combine(directory,$"valid-{plan.OperationId}.xlsx");excel.SaveCopy(committed);
-                var result=Diff.Compare(plan,before,after,checkpoint);journal.Put("undoProfile",priorProfile);
-                state=state with{Revision=after.Revision,ValidCopy=committed};Persist();journal.Finish(plan.OperationId,"completed",result);last=result;journal.Put("last",result);return result;
+                var result=Diff.Compare(plan,before,after,checkpoint);
+                state=state with{Revision=after.Revision,ValidCopy=committed};
+                journal.Atomic(()=>{journal.Put("undoProfile",priorProfile);Persist();journal.Finish(plan.OperationId,"completed",result);journal.Put("last",result);});last=result;return result;
             }
             catch
             {
-                try{excel.Restore(checkpoint,state.Draft);excel.Recalculate();Rules.Validate(excel.Snapshot(),priorProfile);state=state with{Profile=priorProfile,Revision=excel.Snapshot().Revision};journal.Finish(plan.OperationId,"failed");Persist();}
-                catch{state=state with{Blocked=true,Profile=priorProfile};Persist();throw new InvalidOperationException("Falló la recuperación. Sesión bloqueada; cierre y recupere el último estado válido.");}
+                try{excel.Restore(checkpoint,state.Draft);excel.Recalculate();Rules.Validate(excel.Snapshot(),priorProfile);state=priorState with{Revision=excel.Snapshot().Revision};journal.Atomic(()=>{journal.Finish(plan.OperationId,"failed");Persist();});}
+                catch{state=priorState with{Blocked=true};Persist();throw new InvalidOperationException("Falló la recuperación. Sesión bloqueada; cierre y recupere el último estado válido.");}
                 throw;
             }
         }
@@ -62,7 +67,7 @@ public sealed class Session : IDisposable
     public WorkbookSnapshot Undo(string revision)
     {
         lock(gate){Ready();using var lease=excel.Exclusive();if(excel.Snapshot().Revision!=revision)throw new InvalidOperationException("El borrador cambió.");var change=last ?? journal.Get<ChangeSet>("last") ?? throw new InvalidOperationException("No hay lote para deshacer.");
-            try{excel.Restore(change.Checkpoint,state.Draft);excel.Recalculate();var profile=journal.Get<WorkbookProfile>("undoProfile")!;var snapshot=excel.Snapshot();Rules.Validate(snapshot,profile);state=state with{Profile=profile,ValidCopy=change.Checkpoint,Revision=snapshot.Revision};Persist();last=null;journal.Put<ChangeSet?>("last",null);approval=null;return snapshot;}
+            try{ValidateLocalPath(change.Checkpoint);excel.Restore(change.Checkpoint,state.Draft);excel.Recalculate();var profile=journal.Get<WorkbookProfile>("undoProfile")!;var snapshot=excel.Snapshot();Rules.Validate(snapshot,profile);state=state with{Profile=profile,ValidCopy=change.Checkpoint,Revision=snapshot.Revision};journal.Atomic(()=>{Persist();journal.Put<ChangeSet?>("last",null);});last=null;approval=null;return snapshot;}
             catch{state=state with{Blocked=true};Persist();throw;}}
     }
     // Invoked exclusively by the UI controller, never registered as an MCP tool.

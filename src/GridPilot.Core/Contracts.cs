@@ -20,6 +20,17 @@ public record WorkbookProfile(string Id, List<TableProfile> Tables, string Summa
     public string SummarySheet {get;set;}=SummarySheet;
     public TableProfile Table(string name) => Tables.SingleOrDefault(t => t.Name == name) ?? throw new InvalidOperationException("Tabla fuera del perfil.");
     public WorkbookProfile Copy() => Json.Read<WorkbookProfile>(Json.Write(this));
+    public void ValidateDefinition()
+    {
+        var signatures=new Dictionary<string,string>{
+            ["Visitas"]="Id:text Fecha:date Cliente:text Sitio:text Tecnico:text Estado:text Descripcion:text CostoMateriales:calc",
+            ["Inventario"]="Id:text Descripcion:text Unidad:text SaldoInicial:number Minimo:number CostoReferencia:number Entradas:calc Consumos:calc Existencia:calc",
+            ["Movimientos"]="Id:text Fecha:date Tipo:text Material:text Cantidad:number Visita:optional CostoUnitario:number Importe:calc"};
+        if(Tables.Count!=3||Tables.Select(t=>t.Name).Distinct().Count()!=3||string.IsNullOrWhiteSpace(SummarySheet))throw new InvalidOperationException("El perfil requiere las tres tablas del proceso y una hoja de resumen.");
+        foreach(var (name,signature) in signatures){var table=Table(name);if(string.IsNullOrWhiteSpace(table.Sheet)||table.Fields.Select(f=>f.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=table.Fields.Count||table.Fields.Select(f=>f.Header).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=table.Fields.Count)throw new InvalidOperationException("Perfil con campos duplicados o sin hoja.");
+            foreach(var item in signature.Split(' ')){var spec=item.Split(':');var field=table.Fields.SingleOrDefault(f=>f.Key==spec[0])??throw new InvalidOperationException("Falta campo esencial: "+item);var type=spec[1]=="calc"?"number":spec[1]=="optional"?"text":spec[1];if(field.Type!=type||field.Calculated!=(spec[1]=="calc")||field.Required!=(spec[1]!="optional"))throw new InvalidOperationException("Definición incompatible: "+item);}
+            foreach(var field in table.Fields)if(string.IsNullOrWhiteSpace(field.Key)||string.IsNullOrWhiteSpace(field.Header)||field.Type is not ("text" or "number" or "date"))throw new InvalidOperationException("Tipo o nombre de campo no admitido.");}
+    }
 }
 public record CellState(string Sheet, string Address, string Value, string Formula, string NumberFormat);
 public record TableState(string Name, string Sheet, string Address, List<string> Headers, List<Dictionary<string,string>> Rows);

@@ -32,7 +32,7 @@ internal static class OpenXmlSnapshot
                 var address=(string)cell.Attribute("r")!;var type=(string?)cell.Attribute("t");var raw=cell.Element(X+"v")?.Value??"";
                 var value=type=="s"?shared[int.Parse(raw)]:type=="inlineStr"?string.Concat(cell.Descendants(X+"t").Select(t=>t.Value)):raw;
                 var formula=cell.Element(X+"f");
-                var state=new CellState(name,address,value,formulas.GetValueOrDefault((name,address))??(formula is null?"":"="+formula.Value),(string?)cell.Attribute("s")??"0");local[address]=state;cells.Add(state);
+                var state=new CellState(name,address,value,formula is null?"":formulas.GetValueOrDefault((name,address))??"="+formula.Value,(string?)cell.Attribute("s")??"0");local[address]=state;cells.Add(state);
             }
             foreach(var tablePart in doc.Descendants(X+"tablePart"))
             {
@@ -44,6 +44,7 @@ internal static class OpenXmlSnapshot
                 tables.Add(new((string)element.Attribute("name")!,name,address,headers,rows));props.Add("table:"+table.ToString(SaveOptions.DisableFormatting));
             }
             doc.Descendants(X+"sheetViews").Remove(); // Selection and scroll position do not change workbook meaning.
+            foreach(var cell in doc.Descendants(X+"c"))cell.RemoveNodes(); // Values/formulas are compared through CellState, not as formatting.
             props.Add(name+":"+doc.ToString(SaveOptions.DisableFormatting));
         }
         wb.Descendants(X+"bookViews").Remove();wb.Descendants(X+"fileVersion").Remove();

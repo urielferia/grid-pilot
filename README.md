@@ -31,7 +31,7 @@ En otro equipo, instalar ese SDK desde Microsoft o usar el instalador oficial `d
 5. Revisar cambios y resultados en ambas ventanas. **Actualizar revisión** detecta modificaciones manuales. **Deshacer último lote** restaura el punto previo; no admite deshacer parciales.
 6. Pulsar **Aprobar y exportar**, escoger un archivo nuevo y confirmar. Si el borrador cambió después de la revisión, hay que revisarlo otra vez. No se sobrescriben archivos existentes. Sustituir el original es una acción manual fuera de GridPilot.
 
-Los libros que no satisfacen el perfil quedan para inspección. No se afirma compatibilidad de edición con libros arbitrarios. El perfil conocido tiene campos semánticos estables y encabezados editables; los renombrados actualizan el perfil de la sesión.
+Los libros que no satisfacen el perfil quedan para inspección. **Perfil…** permite seleccionar un JSON antes de abrir el próximo libro; partir de `assets/profile.json` y adaptar nombres de hojas y encabezados, conservando las tres tablas y sus claves semánticas, tipos, relaciones y cálculos indispensables. La compatibilidad se comprueba antes de habilitar escrituras. No se afirma compatibilidad con libros arbitrarios. Los renombrados actualizan el perfil de la sesión; **Plantilla demo** vuelve al perfil predeterminado.
 
 ## Datos y recuperación
 

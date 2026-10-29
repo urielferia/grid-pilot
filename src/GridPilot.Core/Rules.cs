@@ -63,7 +63,14 @@ public static class Rules
             Equal(incoming,Number(m["Entradas"]),.000001m); Equal(outgoing,Number(m["Consumos"]),.000001m); Equal(stock,Number(m["Existencia"]),.000001m);
         }
         foreach (var v in visits) Equal(movements.Where(x => x["Tipo"] == "Consumo" && x["Visita"] == v["Id"]).Sum(x => Number(x["Cantidad"]) * Number(x["CostoUnitario"])),Number(v["CostoMateriales"]),.01m);
-        foreach (var c in s.Cells) if (c.Value.StartsWith('#') || c.Formula.Contains("#REF!")) throw new InvalidOperationException("Error de Excel en " + c.Sheet + "!" + c.Address);
+        foreach (var c in s.Cells)
+        {
+            if(c.Value.StartsWith('#') || c.Formula.Contains("#REF!"))throw new InvalidOperationException("Error de Excel en " + c.Sheet + "!" + c.Address);
+            if(c.Formula=="")continue;
+            var clean=Regex.Replace(c.Formula,"\"[^\"]*\"|'[^']*'!","");
+            foreach(Match function in Regex.Matches(clean,@"([A-Za-z_][A-Za-z0-9_.]*)\s*\("))
+                if(!new[]{"SUM","SUMIFS","COUNTIFS","IF","ROUND","INDEX","MATCH","SUMPRODUCT"}.Contains(function.Groups[1].Value.ToUpperInvariant()))throw new InvalidOperationException("Función no soportada en "+c.Sheet+"!"+c.Address);
+        }
         string Cell(string address) => s.Cells.Single(c => c.Sheet == p.SummarySheet && c.Address == address).Value;
         var start = Number(Cell("B5")); var end = Number(Cell("B6"));
         if (start > end) throw new InvalidOperationException("Período inválido.");

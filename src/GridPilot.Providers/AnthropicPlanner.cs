@@ -9,7 +9,7 @@ public interface IPlanner
     Task<Interpretation> Interpret(string instruction,WorkbookProfile profile,Func<string,string,Task<object>> read,CancellationToken token);
 }
 public sealed record Usage(string Model,int Calls,int InputTokens,int OutputTokens,long Milliseconds);
-public sealed class AnthropicPlanner(Settings settings,string key) : IPlanner
+public sealed class AnthropicPlanner(Settings settings,string key,HttpMessageHandler? handler=null) : IPlanner
 {
     public Usage? LastUsage {get;private set;}
     static object Str()=>new{type="string"};
@@ -24,7 +24,7 @@ public sealed class AnthropicPlanner(Settings settings,string key) : IPlanner
         if(!settings.CloudEnabled)throw new InvalidOperationException("Active el uso de nube en Ajustes para interpretar texto.");
         if(instruction.Length>4000 || string.IsNullOrWhiteSpace(instruction))throw new InvalidOperationException("Instrucción vacía o demasiado larga.");
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds,5,180)));
-        using var http=new HttpClient();http.DefaultRequestHeaders.Add("x-api-key",key);http.DefaultRequestHeaders.Add("anthropic-version","2023-06-01");
+        using var http=handler is null?new HttpClient():new HttpClient(handler,false);http.DefaultRequestHeaders.Add("x-api-key",key);http.DefaultRequestHeaders.Add("anthropic-version","2023-06-01");
         var messages=new List<object>{new{role="user",content=instruction}};
         var clock=Stopwatch.StartNew();int input=0,output=0,calls=0;
         try{

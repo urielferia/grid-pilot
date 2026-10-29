@@ -13,26 +13,28 @@ public partial class MainWindow : Window
 {
     RpcClient? rpc;WorkbookSnapshot? snapshot;WorkbookProfile? profile;bool busy,recording,startingVoice,releaseVoice;SpeechInput? speech;
     readonly string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"GridPilot");
-    Settings settings=new();readonly List<string> history=[];
+    Settings settings=new();readonly List<string> history=[];string? selectedProfile;
     CredentialStore Credentials=>new(Path.Combine(root,"credentials"));
     public MainWindow(){InitializeComponent();Directory.CreateDirectory(root);var file=Path.Combine(root,"settings.json");if(File.Exists(file))settings=Json.Read<Settings>(File.ReadAllText(file));}
     async Task Run(Func<Task> action){if(busy||recording)return;busy=true;Controls.IsEnabled=false;try{await action();}catch(Exception e){Status.Text=e.Message;}finally{busy=false;Controls.IsEnabled=true;}}
     async Task<RpcClient> Client(){if(rpc is null){rpc=new();await rpc.Call("initialize",new{protocolVersion="2025-06-18",capabilities=new{},clientInfo=new{name="GridPilot.UI",version="0.1.0"}});}return rpc;}
     async Task OpenPath(string path)
     {
-        Status.Text="Abriendo copia en Excel…";var client=await Client();profile=Json.Read<WorkbookProfile>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets","profile.json")));
+        Status.Text="Abriendo copia en Excel…";var client=await Client();profile=Json.Read<WorkbookProfile>(File.ReadAllText(selectedProfile??Path.Combine(AppContext.BaseDirectory,"assets","profile.json")));
         var result=await client.Call("gridpilot/open",new{path,root=Path.Combine(root,"sessions"),profile});history.Clear();await LoadSnapshot();
         Status.Text=result.GetProperty("Editable").GetBoolean()?"Borrador listo. El original permanece fuera de las escrituras.":"Libro disponible solo para inspección: perfil incompatible.";
     }
     async void Open(object sender,RoutedEventArgs e)=>await Run(async()=>{var dialog=new OpenFileDialog{Filter="Libro Excel|*.xlsx"};if(dialog.ShowDialog()==true)await OpenPath(dialog.FileName);});
-    async void Demo(object sender,RoutedEventArgs e)=>await Run(()=>OpenPath(Path.Combine(AppContext.BaseDirectory,"assets","GridPilot-Demo.xlsx")));
+    async void Demo(object sender,RoutedEventArgs e)=>await Run(async()=>{selectedProfile=null;await OpenPath(Path.Combine(AppContext.BaseDirectory,"assets","GridPilot-Demo.xlsx"));});
+    void SelectProfile(object sender,RoutedEventArgs e){var dialog=new OpenFileDialog{Title="Perfil para el próximo libro",Filter="Perfil de GridPilot|*.json"};if(dialog.ShowDialog()!=true)return;try{var candidate=Json.Read<WorkbookProfile>(File.ReadAllText(dialog.FileName));candidate.ValidateDefinition();selectedProfile=dialog.FileName;Status.Text="Perfil seleccionado para el próximo libro. Se validará su compatibilidad al abrirlo.";}catch(Exception ex){Status.Text=ex.Message;}}
     async void Recover(object sender,RoutedEventArgs e)=>await Run(async()=>{var dialog=new OpenFileDialog{Title="Selecciona session.db de la sesión a recuperar",InitialDirectory=Path.Combine(root,"sessions"),Filter="Sesión GridPilot|session.db"};if(dialog.ShowDialog()==true){await(await Client()).Call("gridpilot/recover",new{directory=Path.GetDirectoryName(dialog.FileName)});history.Clear();await LoadSnapshot();Status.Text="Sesión recuperada desde el último estado válido. No se repitieron escrituras.";}});
     async Task LoadSnapshot()
     {
         var r=await(await Client()).Tool("inspect_workbook",new{});snapshot=Json.Read<WorkbookSnapshot>(r.GetProperty("snapshot").GetRawText());profile=Json.Read<WorkbookProfile>(r.GetProperty("profile").GetRawText());
         Structure.Text=string.Join("\n\n",snapshot.Tables.Select(t=>$"{t.Name} · hoja {t.Sheet} · {t.Rows.Count} registros\n{string.Join(", ",t.Headers)}"))+"\n\nRevisión: "+snapshot.Revision;
         var summary=snapshot.Cells.Where(c=>c.Sheet==profile.SummarySheet&&new[]{"B9","B10","B11"}.Contains(c.Address));
-        Review.Text=string.Join("\n\n",history)+"\n\nResumen actual: "+string.Join(" · ",summary.Select(c=>$"{c.Address}: {c.Value}"))+"\n\nRevisa también las cuatro hojas en la ventana de Excel. La aprobación cubre la revisión completa.";
+        var labels=new Dictionary<string,string>{{"B9","Visitas realizadas"},{"B10","Materiales del período (MXN)"},{"B11","Materiales bajo mínimo"}};
+        Review.Text=string.Join("\n\n",history)+"\n\nResumen actual\n"+string.Join("\n",summary.Select(c=>$"{labels[c.Address]}: {c.Value}"))+"\n\nRevisa también las hojas en la ventana de Excel. La aprobación cubre la revisión completa.";
     }
     void RequireBook(){if(snapshot is null||profile is null)throw new InvalidOperationException("Primero abre un libro.");}
     async Task Execute(List<Operation> operations,string intent,string revision)
