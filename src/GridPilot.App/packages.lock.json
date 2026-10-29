@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "Azure.Core": {
+        "type": "Transitive",
+        "resolved": "1.44.1",
+        "contentHash": "YyznXLQZCregzHvioip07/BkzjuWNXogJEVz9T5W6TwjNr17ax41YGzYMptlo2G10oLCuVPoyva62y0SIRDixg==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
+          "System.ClientModel": "1.1.0",
+          "System.Memory.Data": "6.0.0"
+        }
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "UcSjPsst+DfAdJGVDsu346FX0ci0ah+lw3WRtn18NUwEqRt70HaOQ7lI72vy3+1LxtqI3T5GWwV39rQSrCzAeg=="
+      },
+      "Microsoft.CognitiveServices.Speech": {
+        "type": "Transitive",
+        "resolved": "1.47.0",
+        "contentHash": "gCEeM0AqC+c3nn5Fd27jN16+zWf0N9Fcil0dyveFGASBFEIx2OyEzMi4+hQqwWyr54uHkgfPTmApA9dQfeUwmg==",
+        "dependencies": {
+          "Azure.Core": "1.44.1"
+        }
+      },
+      "System.ClientModel": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "UocOlCkxLZrG2CKMAAImPcldJTxeesHnHGHwhJ0pNlZEvEXcWKuQvVOER2/NiOkJGRJk978SNdw3j6/7O9H1lg==",
+        "dependencies": {
+          "System.Memory.Data": "1.0.2"
+        }
+      },
+      "System.Memory.Data": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "ntFHArH3I4Lpjf5m4DCXQHJuGwWPNVJPaAvM95Jy/u+2Yzt2ryiyIN04LAogkjP9DeRcEOiviAjQotfmPq/FrQ=="
+      },
+      "gridpilot.core": {
+        "type": "Project"
+      },
+      "gridpilot.providers": {
+        "type": "Project",
+        "dependencies": {
+          "GridPilot.Core": "[1.0.0, )",
+          "Microsoft.CognitiveServices.Speech": "[1.47.0, )"
+        }
+      }
+    },
+    "net10.0-windows7.0/win-x64": {
+      "Microsoft.CognitiveServices.Speech": {
+        "type": "Transitive",
+        "resolved": "1.47.0",
+        "contentHash": "gCEeM0AqC+c3nn5Fd27jN16+zWf0N9Fcil0dyveFGASBFEIx2OyEzMi4+hQqwWyr54uHkgfPTmApA9dQfeUwmg==",
+        "dependencies": {
+          "Azure.Core": "1.44.1"
+        }
+      }
+    }
+  }
+}

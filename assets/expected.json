@@ -1,0 +1,20 @@
+{
+  "visits": 10,
+  "materials": 10,
+  "movements": 20,
+  "completed": 8,
+  "materialCost": 550,
+  "belowMinimum": 0,
+  "stock": [
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37
+  ]
+}

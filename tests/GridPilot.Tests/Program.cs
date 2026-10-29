@@ -1,0 +1,63 @@
+using GridPilot.Core;
+using GridPilot.Excel;
+using GridPilot.Storage;
+using GridPilot.Providers;
+using GridPilot.Tests;
+
+var results=new List<object>();int failures=0;
+void Check(string name,Action action){try{action();Console.WriteLine("PASS "+name);results.Add(new{name,passed=true});}catch(Exception e){failures++;Console.WriteLine("FAIL "+name+": "+e);results.Add(new{name,passed=false,error=e.ToString()});}}
+void True(bool value){if(!value)throw new Exception("Aserción falló.");}
+void Throws(Action f){try{f();}catch(InvalidOperationException){return;}throw new Exception("Debió rechazar la operación.");}
+var root=Path.GetFullPath(args.FirstOrDefault(a=>a.StartsWith("--root="))?.Substring(7)??".");
+var output=Path.Combine(root,"artifacts","tests",DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));Directory.CreateDirectory(output);
+var profile=Json.Read<WorkbookProfile>(File.ReadAllText(Path.Combine(root,"assets","profile.json")));
+var original=Path.Combine(root,"assets","GridPilot-Demo.xlsx");var originalHash=Json.FileHash(original);
+Check("Permite fórmulas internas",()=>Rules.Formula("=ROUND(SUM(A1:A3)*2,2)"));
+foreach(var f in new[]{"=WEBSERVICE(\"https://x\")","=NOW()","=[otro.xlsx]A1","=cmd|'x'!A1","=INDIRECT(\"A1\")","=RAND()","=OFFSET(A1,1,1)","=SUM(A:A)"})Check("Rechaza "+f,()=>Throws(()=>Rules.Formula(f)));
+Check("Número decimal invariante",()=>True(Rules.Number("123.45")==123.45m));
+Check("Paquete XLSX sin capacidades excluidas",()=>ExcelWorkbook.CheckPackage(original));
+Check("Simulador de proveedor devuelve aclaración sin operaciones",()=>{IPlanner fake=new FakePlanner(new("¿Qué visita?",[]));var p=fake.Interpret("corrige la visita",profile,(_,_)=>Task.FromResult<object>(new{}),default).Result;True(p.Clarification!=""&&p.Operations.Count==0);});
+Check("Dominio: fixture válido",()=>Rules.Validate(MemoryWorkbook.Fixture(profile),profile));
+foreach(var (table,field,value) in new[]{("Movimientos","Cantidad","-1"),("Movimientos","Material","M999"),("Movimientos","Visita","V999"),("Movimientos","Tipo","Otro"),("Inventario","Existencia","999"),("Visitas","Estado","Cancelada"),("Inventario","Saldo inicial","-1"),("Visitas","Costo materiales","0"),("Movimientos","Importe","99")})
+    Check($"Dominio bloquea {table}/{field}={value}",()=>{var s=MemoryWorkbook.Fixture(profile);s.Table(table).Rows[0][field]=value;Throws(()=>Rules.Validate(s,profile));});
+Check("Dominio bloquea duplicados",()=>{var s=MemoryWorkbook.Fixture(profile);s.Table("Visitas").Rows.Add(new(s.Table("Visitas").Rows[0]));Throws(()=>Rules.Validate(s,profile));});
+Check("Dominio bloquea sustitución de fórmula por valor",()=>{var s=MemoryWorkbook.Fixture(profile);int i=s.Cells.FindIndex(c=>c.Sheet=="Inventario"&&c.Address=="I6");s.Cells[i]=s.Cells[i] with{Formula=""};Throws(()=>Rules.Validate(s,profile));});
+Check("Dominio: tolerancia de importes",()=>{var s=MemoryWorkbook.Fixture(profile);s.Table("Movimientos").Rows[0]["Importe"]="10.005";Rules.Validate(s,profile);s.Table("Movimientos").Rows[0]["Importe"]="10.02";Throws(()=>Rules.Validate(s,profile));});
+Check("Sesión simulada: rollback tras escritura parcial",()=>{var memory=new MemoryWorkbook(profile){FailWrite=true};using var s=new Session(memory,output,original,profile);var before=s.Inspect();Throws(()=>s.Execute(new(Guid.NewGuid().ToString(),"fallo",before.Revision,[new(OperationKind.SetValue,"Inventario","M001","Minimo","11")])));True(before.Revision==s.Inspect().Revision);});
+Check("Sesión simulada: restauración fallida bloquea aprobación",()=>{var memory=new MemoryWorkbook(profile){FailWrite=true,FailRestore=true};using var s=new Session(memory,output,original,profile);Throws(()=>s.Execute(new(Guid.NewGuid().ToString(),"fallo",s.Inspect().Revision,[new(OperationKind.SetValue,"Inventario","M001","Minimo","11")])));Throws(()=>s.Approve(s.Inspect().Revision));});
+Check("SQLite: operación pendiente no se repite tras recuperación",()=>{using var j=new Journal(Path.Combine(output,"journal.db"));var p=new ActionPlan(Guid.NewGuid().ToString(),"interrumpida","r",[]);j.Begin(p);j.RecoverPending();True(j.Find(p.OperationId)!.Value.Status=="interrupted");});
+
+if(args.Contains("--excel"))
+{
+    using var excel=new ExcelWorkbook(false);using var session=new Session(excel,Path.Combine(output,"sessions"),original,profile);
+    if(args.Contains("--snapshot-only")){var a=session.Inspect();var b=session.Inspect();File.WriteAllText(Path.Combine(output,"a.json"),Json.Write(a));File.WriteAllText(Path.Combine(output,"b.json"),Json.Write(b));Console.WriteLine(output);return;}
+    ActionPlan Plan(params Operation[] operations)=>new(Guid.NewGuid().ToString(),"Prueba",session.Inspect().Revision,operations.ToList());
+    Check("Plantilla real: 10 materiales, 10 visitas, 20 movimientos y verificación independiente",()=>{True(session.Editable);var s=session.Inspect();Rules.Validate(s,session.Profile);True(s.Table("Inventario").Rows.Count==10&&s.Table("Visitas").Rows.Count==10&&s.Table("Movimientos").Rows.Count==20);File.WriteAllText(Path.Combine(output,"snapshot.json"),Json.Write(s));});
+    Check("Exportar sin aprobar se bloquea",()=>Throws(()=>session.Export(Path.Combine(output,"sin-aprobar.xlsx"))));
+    Check("Registro de visita y consumo en mismo lote",()=>{session.Execute(Plan(new Operation(OperationKind.AddRecord,"Visitas",Values:new(){["Id"]="V011",["Fecha"]="2026-10-20",["Cliente"]="Demo",["Sitio"]="Taller",["Tecnico"]="Ana",["Estado"]="Realizada",["Descripcion"]="Prueba"}),new Operation(OperationKind.AddRecord,"Movimientos",Values:new(){["Id"]="MOV021",["Fecha"]="2026-10-20",["Tipo"]="Consumo",["Material"]="M001",["Cantidad"]="3",["Visita"]="V011",["CostoUnitario"]="5"})));True(session.Inspect().Table("Inventario").Rows[0]["Existencia"]=="25");});
+    Check("Corrección de cantidad actualiza inventario",()=>{session.Execute(Plan(new Operation(OperationKind.SetValue,"Movimientos","MOV021","Cantidad","4")));True(session.Inspect().Table("Inventario").Rows[0]["Existencia"]=="24");});
+    Check("Reintento idempotente",()=>{var p=Plan(new Operation(OperationKind.SetValue,"Movimientos","MOV021","Cantidad","5"));var a=session.Execute(p);var b=session.Execute(p);True(a.AfterRevision==b.AfterRevision);});
+    Check("Mismo ID con otro plan bloqueado",()=>{var p=Plan(new Operation(OperationKind.SetValue,"Movimientos","MOV021","Cantidad","4"));session.Execute(p);Throws(()=>session.Execute(p with{Intent="Otro"}));});
+    Check("Sin existencias: revierte todo el lote",()=>{var before=session.Inspect();Throws(()=>session.Execute(Plan(new Operation(OperationKind.SetValue,"Movimientos","MOV021","Cantidad","9999"))));True(session.Inspect().Revision==before.Revision);});
+    Check("Clave duplicada revierte",()=>{var before=session.Inspect();Throws(()=>session.Execute(Plan(new Operation(OperationKind.AddRecord,"Movimientos",Values:new(){["Id"]="MOV021",["Fecha"]="2026-10-20",["Tipo"]="Entrada",["Material"]="M001",["Cantidad"]="1",["Visita"]="",["CostoUnitario"]="5"}))));True(session.Inspect().Revision==before.Revision);});
+    Check("Consumo para visita programada bloqueado",()=>Throws(()=>session.Execute(Plan(new Operation(OperationKind.SetValue,"Movimientos","MOV021","Visita","V009")))));
+    Check("Eliminar material relacionado bloqueado",()=>Throws(()=>session.Execute(Plan(new Operation(OperationKind.DeleteRecord,"Inventario","M001")))));
+    Check("Eliminar visita y resolver dependencia en lote",()=>{session.Execute(Plan(new Operation(OperationKind.DeleteRecord,"Visitas","V011"),new Operation(OperationKind.DeleteRecord,"Movimientos","MOV021")));True(session.Inspect().Table("Visitas").Rows.Count==10);});
+    Check("Entrada y eliminación de consumo",()=>{session.Execute(Plan(new Operation(OperationKind.AddRecord,"Movimientos",Values:new(){["Id"]="MOV022",["Fecha"]="2026-10-20",["Tipo"]="Entrada",["Material"]="M001",["Cantidad"]="3",["Visita"]="",["CostoUnitario"]="5"}),new Operation(OperationKind.DeleteRecord,"Movimientos","MOV011")));True(session.Inspect().Table("Inventario").Rows[0]["Existencia"]=="33");});
+    Check("Costo histórico no cambia al cambiar catálogo",()=>{var before=session.Inspect().Table("Movimientos").Rows[0]["Costo unitario"];session.Execute(Plan(new Operation(OperationKind.SetValue,"Inventario","M001","CostoReferencia","99")));True(session.Inspect().Table("Movimientos").Rows[0]["Costo unitario"]==before);});
+    Check("Nueva columna calculada y hoja renombrada",()=>{session.Execute(Plan(new Operation(OperationKind.AddColumn,"Inventario",Field:"Valor",Value:"=I6*F6"),new Operation(OperationKind.RenameSheet,"Inventario",Value:"Almacén")));True(session.Inspect().Sheets.Contains("Almacén"));});
+    Check("Renombrar campo actualiza perfil y referencias",()=>{session.Execute(Plan(new Operation(OperationKind.RenameColumn,"Inventario",Field:"Descripcion",Value:"Material demo")));True(session.Profile.Table("Inventario").Fields.Single(f=>f.Key=="Descripcion").Header=="Material demo");});
+    Check("Proteger identificadores y cálculos esenciales",()=>{Throws(()=>session.Execute(Plan(new Operation(OperationKind.DeleteColumn,"Inventario",Field:"Id"))));Throws(()=>session.Execute(Plan(new Operation(OperationKind.SetValue,"Inventario","M001","Existencia","10"))));});
+    Check("Fórmula rota y circular revierte",()=>{Throws(()=>session.Execute(Plan(new Operation(OperationKind.SetFormula,"Inventario",Field:"Valor",Value:"=NoExiste!A1"))));Throws(()=>session.Execute(Plan(new Operation(OperationKind.SetFormula,"Inventario",Field:"Valor",Value:"=J6"))));});
+    Check("Deshacer restaura valor y revisión",()=>{var before=session.Inspect();session.Execute(Plan(new Operation(OperationKind.SetValue,"Inventario","M001","Minimo","11")));session.Undo(session.Inspect().Revision);True(session.Inspect().Revision==before.Revision);});
+    Check("Plan desactualizado bloqueado tras edición manual",()=>{var stale=Plan(new Operation(OperationKind.SetValue,"Inventario","M001","Minimo","12"));excel.Apply(new Operation(OperationKind.SetValue,"Inventario","M001","Minimo","13"),session.Profile);excel.Recalculate();Throws(()=>session.Execute(stale));});
+    Check("Aprobación desactualizada bloqueada",()=>{var old=session.Inspect().Revision;excel.Apply(new Operation(OperationKind.SetValue,"Inventario","M001","Minimo","14"),session.Profile);excel.Recalculate();Throws(()=>session.Approve(old));});
+    Check("Cambio posterior invalida aprobación",()=>{session.Approve(session.Inspect().Revision);excel.Apply(new Operation(OperationKind.SetValue,"Inventario","M001","Minimo","15"),session.Profile);excel.Recalculate();Throws(()=>session.Export(Path.Combine(output,"stale.xlsx")));});
+    Check("Exportación nunca sobrescribe original ni existente",()=>{session.Approve(session.Inspect().Revision);Throws(()=>session.Export(original));var dest=Path.Combine(output,"exists.xlsx");File.WriteAllText(dest,"existing");Throws(()=>session.Export(dest));True(File.ReadAllText(dest)=="existing");});
+    Check("Exportación aprobada exacta y reapertura Excel",()=>{var approved=session.Approve(session.Inspect().Revision);var dest=Path.Combine(output,"approved.xlsx");session.Export(dest);True(Json.FileHash(dest)==approved.Hash);using var second=new ExcelWorkbook(false);var copy=Path.Combine(output,"reopen-copy.xlsx");File.Copy(dest,copy);second.Open(copy);second.Recalculate();Rules.Validate(second.Snapshot(),session.Profile);});
+    Check("Recuperación explícita desde último estado válido",()=>{var folder=session.DirectoryPath;var expected=session.Profile.Copy();session.Dispose();using var recovered=new Session(new ExcelWorkbook(false),folder);Rules.Validate(recovered.Inspect(),expected);});
+}
+Check("Original conserva SHA-256",()=>True(Json.FileHash(original)==originalHash));
+File.WriteAllText(Path.Combine(output,"results.json"),Json.Write(new{excel=args.Contains("--excel"),results,failures}));
+Console.WriteLine($"{results.Count-failures}/{results.Count} PASS. Informe: {output}");
+Environment.ExitCode=failures==0?0:1;

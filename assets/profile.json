@@ -1,0 +1,199 @@
+{
+  "Id": "gridpilot-demo-v1",
+  "SummarySheet": "Resumen",
+  "Tables": [
+    {
+      "Name": "Visitas",
+      "Sheet": "Visitas",
+      "Fields": [
+        {
+          "Key": "Id",
+          "Header": "ID",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Fecha",
+          "Header": "Fecha",
+          "Type": "date",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Cliente",
+          "Header": "Cliente",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Sitio",
+          "Header": "Sitio",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Tecnico",
+          "Header": "Técnico",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Estado",
+          "Header": "Estado",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Descripcion",
+          "Header": "Trabajo",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "CostoMateriales",
+          "Header": "Costo materiales",
+          "Type": "number",
+          "Required": true,
+          "Calculated": true
+        }
+      ]
+    },
+    {
+      "Name": "Inventario",
+      "Sheet": "Inventario",
+      "Fields": [
+        {
+          "Key": "Id",
+          "Header": "ID material",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Descripcion",
+          "Header": "Descripción",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Unidad",
+          "Header": "Unidad",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "SaldoInicial",
+          "Header": "Saldo inicial",
+          "Type": "number",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Minimo",
+          "Header": "Mínimo",
+          "Type": "number",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "CostoReferencia",
+          "Header": "Costo referencia",
+          "Type": "number",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Entradas",
+          "Header": "Entradas",
+          "Type": "number",
+          "Required": true,
+          "Calculated": true
+        },
+        {
+          "Key": "Consumos",
+          "Header": "Consumos",
+          "Type": "number",
+          "Required": true,
+          "Calculated": true
+        },
+        {
+          "Key": "Existencia",
+          "Header": "Existencia",
+          "Type": "number",
+          "Required": true,
+          "Calculated": true
+        }
+      ]
+    },
+    {
+      "Name": "Movimientos",
+      "Sheet": "Movimientos",
+      "Fields": [
+        {
+          "Key": "Id",
+          "Header": "ID",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Fecha",
+          "Header": "Fecha",
+          "Type": "date",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Tipo",
+          "Header": "Tipo",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Material",
+          "Header": "Material",
+          "Type": "text",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Cantidad",
+          "Header": "Cantidad",
+          "Type": "number",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Visita",
+          "Header": "Visita",
+          "Type": "text",
+          "Required": false,
+          "Calculated": false
+        },
+        {
+          "Key": "CostoUnitario",
+          "Header": "Costo unitario",
+          "Type": "number",
+          "Required": true,
+          "Calculated": false
+        },
+        {
+          "Key": "Importe",
+          "Header": "Importe",
+          "Type": "number",
+          "Required": true,
+          "Calculated": true
+        }
+      ]
+    }
+  ]
+}

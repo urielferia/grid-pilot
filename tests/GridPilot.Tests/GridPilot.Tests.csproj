@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../../src/GridPilot.Excel/GridPilot.Excel.csproj" /><ProjectReference Include="../../src/GridPilot.Storage/GridPilot.Storage.csproj" /><ProjectReference Include="../../src/GridPilot.Providers/GridPilot.Providers.csproj" /></ItemGroup></Project>
