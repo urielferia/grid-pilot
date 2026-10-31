@@ -17,6 +17,10 @@ Implementa este proyecto siguiendo las decisiones y etapas de este documento. Tr
 
 Este documento autoriza la implementación del proyecto; la aprobación humana descrita a continuación pertenece al funcionamiento del producto y no implica pedir permiso para cada edición del código.
 
+## Actualización autorizada — 30 de octubre de 2026
+
+Por preferencia del usuario, se añade Gemini Developer API como proveedor seleccionable y se recomienda `gemini-3.8-flash` para instalaciones nuevas. Anthropic sigue disponible; configuraciones previas conservan su selección. Esta actualización reemplaza la exclusividad de Anthropic en la arquitectura original, sin cambiar las reglas de ejecución, aprobación ni aceptación. Ver docs/MODELS.md y docs/PROGRESS.md. La integración real no se declara validada sin la batería de nube.
+
 ## 1. Objetivo y alcance de la primera versión
 
 Construir una aplicación para Windows que permita operar Excel mediante voz y texto. El agente analizará el libro, interpretará instrucciones y ejecutará cambios sobre una copia visible en Excel. El usuario revisará el resultado y aprobará la exportación de un archivo nuevo.

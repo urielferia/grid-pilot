@@ -9,6 +9,6 @@ La batería fija está en `tests/evaluation-30.json`: 20 instrucciones claras, 5
 5. Calcular claras correctas / 20: deben aprobar al menos 18. Las 5 ambiguas y las 5 inválidas deben cumplir todas. Conservar además evidencia visual y una exportación aprobada reabierta en Excel.
 6. Repetir al cambiar modelo, perfil, fórmulas esenciales o reglas. Una prueba simulada no cuenta para el umbral de interpretación.
 
-Estado: evaluación real de Anthropic y Azure pendiente de credenciales y autorización de consumo. No se atribuye precisión al modelo a partir de los tests deterministas.
+Estado: evaluación real de Gemini/Anthropic y Azure pendiente de credenciales y autorización de consumo. No se atribuye precisión al modelo a partir de los tests deterministas.
 
 Pruebas manuales adicionales: mantener el botón de voz y soltar, perder captura del ratón, llegar al límite de duración, cancelar micrófono; Excel en modo de edición/ocupado; cortar la conexión a Internet; cerrar Excel inesperadamente; cerrar el servidor durante un lote y recuperar desde último estado confirmado. Comprobar que no se repiten escrituras automáticamente.
