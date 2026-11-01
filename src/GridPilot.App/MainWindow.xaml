@@ -1,19 +1,478 @@
-<Window x:Class="GridPilot.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="GridPilot · Excel by voice and text" Width="720" Height="860" MinWidth="600" MinHeight="650" Background="#F4F6FA" Closing="OnClosing">
- <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
- <DockPanel LastChildFill="True">
-  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,4,0,0">
-   <TextBlock x:Name="LanguageLabel" Text="Language:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-   <ComboBox x:Name="LanguageSelector" Width="110" SelectionChanged="ChangeLanguage" SelectedValuePath="Tag">
-    <ComboBoxItem Content="English" Tag="en"/>
-    <ComboBoxItem Content="Español" Tag="es"/>
-   </ComboBox>
-  </StackPanel>
-  <StackPanel><TextBlock Text="GridPilot" FontSize="28" FontWeight="SemiBold" Foreground="#213D61"/><TextBlock x:Name="SubtitleText" Text="Work on a visible draft. Review before exporting." Margin="0,6,0,18"/></StackPanel>
- </DockPanel>
- <WrapPanel Grid.Row="1" x:Name="Controls"><Button x:Name="OpenBtn" Content="_Open workbook" Click="Open"/><Button x:Name="DemoBtn" Content="_Demo template" Click="Demo"/><Button x:Name="ProfileBtn" Content="_Profile…" Click="SelectProfile"/><Button x:Name="RecoverBtn" Content="_Recover session" Click="Recover"/><Button x:Name="SettingsBtn" Content="_Settings" Click="Configure"/></WrapPanel>
- <TextBlock Grid.Row="2" x:Name="Status" Text="Select an .xlsx file to begin." TextWrapping="Wrap" Margin="0,8,0,12" FontWeight="SemiBold"/>
- <TabControl Grid.Row="3"><TabItem x:Name="ReviewTab" Header="Review"><TextBox x:Name="Review" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Segoe UI" Background="White"/></TabItem><TabItem x:Name="StructureTab" Header="Structure"><TextBox x:Name="Structure" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/></TabItem><TabItem x:Name="BatchTab" Header="Local batch"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12"><TextBlock x:Name="BatchHint" Text="Deterministic mode: paste a JSON list of typed operations." TextWrapping="Wrap"/><TextBox x:Name="Batch" Height="250" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Text="[]"/><Button x:Name="ExecuteBatchBtn" Content="Run batch on draft" Click="ExecuteLocal" Margin="0,12,0,0"/></StackPanel></ScrollViewer></TabItem></TabControl>
- <StackPanel Grid.Row="4" Margin="0,16,0,0"><TextBlock x:Name="InstructionLabel" Text="Your instruction"/><TextBox x:Name="Instruction" Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/><WrapPanel Margin="0,8,0,0"><Button x:Name="Voice" Content="Speak" Click="ToggleVoice"/><Button x:Name="SendBtn" Content="Send" Click="Send"/><Button x:Name="RefreshBtn" Content="Refresh review" Click="Refresh"/></WrapPanel></StackPanel>
- <WrapPanel Grid.Row="5"><Button x:Name="UndoBtn" Content="Undo last batch" Click="Undo"/><Button x:Name="ApproveBtn" Content="Approve and export…" Click="ApproveExport" Background="#213D61" Foreground="White"/><Button x:Name="DiscardBtn" Content="Discard session" Click="Discard"/></WrapPanel>
- </Grid>
+<Window x:Class="GridPilot.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="GridPilot · Excel by voice and text"
+        Width="980" Height="860" MinWidth="720" MinHeight="640"
+        Background="#0D1117" Foreground="#E6EDF3"
+        Closing="OnClosing">
+
+    <!-- =========================================================================
+         AGENT HARNESS THEME TOKENS (TEMPLATE)
+         Customize palette colors, corner radii, and typography from this block.
+         ========================================================================= -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="BgCanvas" Color="#0D1117"/>
+        <SolidColorBrush x:Key="BgSurface" Color="#161B22"/>
+        <SolidColorBrush x:Key="BgElevated" Color="#1F242D"/>
+        <SolidColorBrush x:Key="BgUserBubble" Color="#1F3A5F"/>
+        <SolidColorBrush x:Key="BorderSubtle" Color="#30363D"/>
+        <SolidColorBrush x:Key="BorderAccent" Color="#388BFD"/>
+        <SolidColorBrush x:Key="AccentPrimary" Color="#58A6FF"/>
+        <SolidColorBrush x:Key="AccentSuccess" Color="#3FB950"/>
+        <SolidColorBrush x:Key="AccentDanger" Color="#D32F2F"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#E6EDF3"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#8B949E"/>
+
+        <!-- Pill Chip Button Style (used in chat turns and composer quick-bar) -->
+        <Style x:Key="ChipButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1F242D"/>
+            <Setter Property="Foreground" Value="#C9D1D9"/>
+            <Setter Property="BorderBrush" Value="#30363D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,5"/>
+            <Setter Property="Margin" Value="0,0,6,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="PillBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PillBorder" Property="Background" Value="#293241"/>
+                                <Setter TargetName="PillBorder" Property="BorderBrush" Value="#58A6FF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="PillBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Composer Pill Action Button Style (Voice / Send / Header Pills) -->
+        <Style x:Key="HarnessPillButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#21262D"/>
+            <Setter Property="Foreground" Value="#E6EDF3"/>
+            <Setter Property="BorderBrush" Value="#30363D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#58A6FF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- =========================================================================
+             1. TOP AGENT HARNESS HEADER BAR
+             ========================================================================= -->
+        <Border Grid.Row="0" Background="{StaticResource BgSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="0,0,0,1" Padding="20,12">
+            <DockPanel LastChildFill="True">
+                <!-- Right: Language Selector + Context Drawer Toggle -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource BgElevated}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="8,3" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="LanguageLabel" Text="Language:" Foreground="{StaticResource TextMuted}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox x:Name="LanguageSelector" Width="92" FontSize="12" SelectionChanged="ChangeLanguage" SelectedValuePath="Tag">
+                                <ComboBoxItem Content="English" Tag="en"/>
+                                <ComboBoxItem Content="Español" Tag="es"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="ContextToggleBtn" Style="{StaticResource HarnessPillButtonStyle}" Content="☷ Context" Click="ToggleContextDrawer" Padding="10,5" FontSize="12"/>
+                </StackPanel>
+
+                <!-- Left: Brand Identity + Live Workbook Session Pill + Revision Badge -->
+                <WrapPanel VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Ellipse Width="10" Height="10" Fill="{StaticResource AccentSuccess}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="GridPilot" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
+                        <Border Background="#1F3A5F" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="AGENT HARNESS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AccentPrimary}" FontFamily="Consolas"/>
+                        </Border>
+                    </StackPanel>
+
+                    <Border Background="{StaticResource BgElevated}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="SessionBadge" Text="No active workbook" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                    </Border>
+
+                    <Border x:Name="RevisionPill" Background="{StaticResource BgElevated}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="12" Padding="10,4" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="RevisionBadge" Text="rev: —" FontSize="11.5" FontFamily="Consolas" Foreground="{StaticResource AccentPrimary}"/>
+                    </Border>
+                </WrapPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- =========================================================================
+             2. MAIN WORKSPACE: CHAT STREAM + COLLAPSIBLE CONTEXT DRAWER
+             ========================================================================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 2A. CONVERSATIONAL TIMELINE -->
+            <ScrollViewer x:Name="ChatScroll" Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,12">
+                <ItemsControl x:Name="ChatList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,16">
+                                <!-- USER MESSAGE BUBBLE -->
+                                <Border Visibility="{Binding UserVisibility}"
+                                        Background="{StaticResource BgUserBubble}"
+                                        BorderBrush="#2E568C"
+                                        BorderThickness="1"
+                                        CornerRadius="12,12,2,12"
+                                        Padding="14,10"
+                                        MaxWidth="640"
+                                        HorizontalAlignment="Right">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="{Binding Author}" FontSize="10.5" FontWeight="Bold" Foreground="#9ECBFF" FontFamily="Consolas"/>
+                                            <TextBlock Text="{Binding Timestamp}" FontSize="10.5" Foreground="#8B949E" Margin="8,0,0,0" FontFamily="Consolas"/>
+                                        </StackPanel>
+                                        <TextBox Text="{Binding Text, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 Foreground="{StaticResource TextPrimary}"
+                                                 TextWrapping="Wrap"
+                                                 FontSize="13.5"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- AGENT HARNESS TURN CARD -->
+                                <Border Visibility="{Binding AgentVisibility}"
+                                        Background="{StaticResource BgSurface}"
+                                        BorderBrush="{StaticResource BorderSubtle}"
+                                        BorderThickness="1"
+                                        CornerRadius="4,12,12,12"
+                                        Padding="16,12"
+                                        MaxWidth="780"
+                                        HorizontalAlignment="Left">
+                                    <StackPanel>
+                                        <!-- Agent Turn Header + Tool Step Badge -->
+                                        <WrapPanel VerticalAlignment="Center" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Author}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentPrimary}" FontFamily="Consolas" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Timestamp}" FontSize="10.5" Foreground="{StaticResource TextMuted}" Margin="8,0,10,0" FontFamily="Consolas" VerticalAlignment="Center"/>
+                                            <Border Visibility="{Binding BadgeVisibility}"
+                                                    Background="{StaticResource BgElevated}"
+                                                    BorderBrush="{StaticResource BorderSubtle}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="7,2">
+                                                <TextBlock Text="{Binding ToolBadge}" FontSize="11" FontFamily="Consolas" Foreground="#79C0FF"/>
+                                            </Border>
+                                        </WrapPanel>
+
+                                        <!-- Agent Main Text -->
+                                        <TextBox Text="{Binding Text, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 Foreground="{StaticResource TextPrimary}"
+                                                 TextWrapping="Wrap"
+                                                 FontSize="13.5"
+                                                 Margin="0,2,0,4"/>
+
+                                        <!-- Expandable Tool / Diff / KPI Verification Card -->
+                                        <Border Visibility="{Binding DiffCardVisibility}"
+                                                Background="#0D1117"
+                                                BorderBrush="{StaticResource BorderSubtle}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Margin="0,8,0,4"
+                                                Padding="10,8">
+                                            <Expander IsExpanded="True" Foreground="{StaticResource TextPrimary}">
+                                                <Expander.Header>
+                                                    <TextBlock Text="{Binding DiffHeader}" FontSize="12" FontWeight="SemiBold" FontFamily="Consolas" Foreground="#7EE787"/>
+                                                </Expander.Header>
+                                                <StackPanel Margin="0,8,0,0">
+                                                    <!-- Cell & Structure Diffs -->
+                                                    <ItemsControl ItemsSource="{Binding DiffLines}" Visibility="{Binding DiffLinesVisibility}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border BorderBrush="#21262D" BorderThickness="0,0,0,1" Padding="4,5">
+                                                                    <StackPanel>
+                                                                        <WrapPanel>
+                                                                            <TextBlock Text="{Binding Target}" FontFamily="Consolas" FontSize="12" FontWeight="SemiBold" Foreground="#D2A8FF" Margin="0,0,8,0"/>
+                                                                            <TextBlock Text="{Binding Before}" FontFamily="Consolas" FontSize="12" Foreground="#FF7B72" TextDecorations="Strikethrough" Margin="0,0,6,0"/>
+                                                                            <TextBlock Text="→" FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,0,6,0"/>
+                                                                            <TextBlock Text="{Binding After}" FontFamily="Consolas" FontSize="12" FontWeight="SemiBold" Foreground="#7EE787"/>
+                                                                        </WrapPanel>
+                                                                        <TextBlock Text="{Binding FormulaDiff}"
+                                                                                   Visibility="{Binding FormulaVisibility}"
+                                                                                   FontFamily="Consolas"
+                                                                                   FontSize="11"
+                                                                                   Foreground="{StaticResource TextMuted}"
+                                                                                   Margin="0,2,0,0"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+
+                                                    <!-- Updated Summary KPIs -->
+                                                    <Border Visibility="{Binding SummaryVisibility}" Background="#161B22" CornerRadius="6" Padding="10,8" Margin="0,8,0,0">
+                                                        <ItemsControl ItemsSource="{Binding SummaryMetrics}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12" Foreground="#C9D1D9" Margin="0,1"/>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Expander>
+                                        </Border>
+
+                                        <!-- Contextual Follow-up Suggestion Chips -->
+                                        <ItemsControl ItemsSource="{Binding Chips}" Visibility="{Binding ChipsVisibility}" Margin="0,8,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                                            Content="{Binding Label}"
+                                                            Tag="{Binding Command}"
+                                                            Click="OnChipClick"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- 2B. COLLAPSIBLE CONTEXT & DETERMINISTIC BATCH DRAWER -->
+            <Border x:Name="ContextDrawer"
+                    Grid.Column="1"
+                    Width="320"
+                    Background="{StaticResource BgSurface}"
+                    BorderBrush="{StaticResource BorderSubtle}"
+                    BorderThickness="1,0,0,0"
+                    Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+                    <StackPanel>
+                        <TextBlock x:Name="DrawerTitle" Text="WORKBOOK CONTEXT" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="{StaticResource AccentPrimary}" Margin="0,0,0,8"/>
+                        <TextBox x:Name="Structure"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 Background="#0D1117"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 BorderBrush="{StaticResource BorderSubtle}"
+                                 BorderThickness="1"
+                                 Padding="10"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 MinHeight="160"/>
+
+                        <TextBlock x:Name="ReviewDrawerTitle" Text="CURRENT SUMMARY &amp; LOG" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="{StaticResource AccentPrimary}" Margin="0,16,0,8"/>
+                        <TextBox x:Name="Review"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 Background="#0D1117"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 BorderBrush="{StaticResource BorderSubtle}"
+                                 BorderThickness="1"
+                                 Padding="10"
+                                 FontFamily="Segoe UI"
+                                 FontSize="12"
+                                 MaxHeight="220"
+                                 VerticalScrollBarVisibility="Auto"/>
+
+                        <TextBlock x:Name="BatchDrawerTitle" Text="DETERMINISTIC JSON BATCH" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="{StaticResource AccentPrimary}" Margin="0,16,0,4"/>
+                        <TextBlock x:Name="BatchHint" Text="Deterministic mode: paste a JSON list of typed operations." Foreground="{StaticResource TextMuted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <TextBox x:Name="Batch"
+                                 Height="130"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Background="#0D1117"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 BorderBrush="{StaticResource BorderSubtle}"
+                                 Padding="8"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 Text="[]"/>
+                        <Button x:Name="ExecuteBatchBtn"
+                                Style="{StaticResource HarnessPillButtonStyle}"
+                                Content="Run batch on draft"
+                                Click="ExecuteLocal"
+                                Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- =========================================================================
+             3. BOTTOM AGENT COMPOSER (SLASH MENU + CONTEXT CHIPS + PROMPT BAR)
+             ========================================================================= -->
+        <Border Grid.Row="2" Background="{StaticResource BgSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="0,1,0,0" Padding="20,10,20,16">
+            <StackPanel x:Name="Controls">
+                <!-- Floating Slash-Command Autocomplete Palette -->
+                <Popup x:Name="SlashPopup"
+                       PlacementTarget="{Binding ElementName=ComposerBorder}"
+                       Placement="Top"
+                       StaysOpen="False"
+                       AllowsTransparency="True">
+                    <Border Background="#161B22"
+                            BorderBrush="{StaticResource BorderAccent}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="6"
+                            Width="520"
+                            Margin="0,0,0,6">
+                        <ListBox x:Name="SlashList"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 MaxHeight="220"
+                                 MouseLeftButtonUp="OnSlashListClick">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="6,4">
+                                        <TextBlock Text="{Binding DisplayCommand}"
+                                                   FontFamily="Consolas"
+                                                   FontWeight="Bold"
+                                                   Foreground="#58A6FF"
+                                                   Width="150"/>
+                                        <TextBlock Text="{Binding Description}"
+                                                   Foreground="#C9D1D9"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </Popup>
+
+                <!-- Live Status Line + Quick-Action Command Chips -->
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock x:Name="Status"
+                               DockPanel.Dock="Right"
+                               Text="Select an .xlsx file to begin."
+                               Foreground="{StaticResource TextMuted}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Margin="12,0,0,0"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="360"/>
+                    <ItemsControl x:Name="ComposerChips">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource ChipButtonStyle}"
+                                        Content="{Binding Label}"
+                                        Tag="{Binding Command}"
+                                        Click="OnChipClick"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+
+                <!-- Unified Prompt Box + Voice Dictation Pill + Send Button -->
+                <Border x:Name="ComposerBorder"
+                        Background="{StaticResource BgElevated}"
+                        BorderBrush="{StaticResource BorderSubtle}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Multiline Prompt Input with Watermark -->
+                        <Grid Grid.Column="0" Margin="0,0,12,0">
+                            <TextBox x:Name="Instruction"
+                                     MinHeight="46"
+                                     MaxHeight="120"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Background="Transparent"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     CaretBrush="{StaticResource AccentPrimary}"
+                                     BorderThickness="0"
+                                     FontSize="13.5"
+                                     TextChanged="OnInstructionTextChanged"
+                                     PreviewKeyDown="OnInstructionPreviewKeyDown"/>
+                            <TextBlock x:Name="PromptPlaceholder"
+                                       Text="Ask GridPilot in natural language or type / for commands (/demo, /open, /undo, /export, /settings)…"
+                                       Foreground="{StaticResource TextMuted}"
+                                       FontSize="13"
+                                       IsHitTestVisible="False"
+                                       Margin="4,2,0,0"/>
+                        </Grid>
+
+                        <!-- Right Action Pills: Click-to-Speak (turns Red on Stop) & Send -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <Button x:Name="Voice"
+                                    Style="{StaticResource HarnessPillButtonStyle}"
+                                    Content="Hablar"
+                                    Click="ToggleVoice"
+                                    Margin="0,0,8,0"/>
+                            <Button x:Name="SendBtn"
+                                    Style="{StaticResource HarnessPillButtonStyle}"
+                                    Content="Send"
+                                    Background="#1F6FEB"
+                                    BorderBrush="#388BFD"
+                                    Foreground="White"
+                                    Click="Send"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>

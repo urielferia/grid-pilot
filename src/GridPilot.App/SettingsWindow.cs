@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using GridPilot.Providers;
+
 namespace GridPilot.App;
+
 public sealed class SettingsWindow : Window
 {
     public Settings Result { get; private set; }
@@ -17,15 +20,34 @@ public sealed class SettingsWindow : Window
         bool IsEs() => langCode == "es";
         string T(string en, string es) => IsEs() ? es : en;
 
-        Width = 480;
+        Width = 500;
         Height = Math.Min(720, SystemParameters.WorkArea.Height);
         MaxHeight = SystemParameters.WorkArea.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Background = new SolidColorBrush(Color.FromRgb(13, 17, 23));
+        Foreground = new SolidColorBrush(Color.FromRgb(230, 237, 243));
+
+        var surfaceBrush = new SolidColorBrush(Color.FromRgb(22, 27, 34));
+        var borderBrush = new SolidColorBrush(Color.FromRgb(48, 54, 61));
+        var textPrimary = new SolidColorBrush(Color.FromRgb(230, 237, 243));
+        var textMuted = new SolidColorBrush(Color.FromRgb(139, 148, 158));
+
+        void StyleInput(Control c)
+        {
+            c.Background = surfaceBrush;
+            c.Foreground = textPrimary;
+            c.BorderBrush = borderBrush;
+            c.Padding = new Thickness(8, 6, 8, 6);
+        }
+
+        StyleInput(gemini);
+        StyleInput(anthropic);
+        StyleInput(speech);
 
         var panel = new StackPanel { Margin = new Thickness(24) };
         Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
-        var langLabel = new TextBlock { Margin = new Thickness(0, 0, 0, 4) };
+        var langLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 0, 0, 4) };
         var langCombo = new ComboBox
         {
             SelectedValuePath = "Tag",
@@ -40,42 +62,53 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(langLabel);
         panel.Children.Add(langCombo);
 
-        var cloud = new CheckBox { IsChecked = current.CloudEnabled, Margin = new Thickness(0, 0, 0, 20) };
+        var cloud = new CheckBox { Foreground = textPrimary, IsChecked = current.CloudEnabled, Margin = new Thickness(0, 0, 0, 20) };
         panel.Children.Add(cloud);
 
-        var providerLabel = new TextBlock();
+        var providerLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 0, 0, 4) };
         panel.Children.Add(providerLabel);
         var provider = new ComboBox { ItemsSource = new[] { "gemini", "anthropic" }, SelectedItem = current.Provider };
         panel.Children.Add(provider);
 
-        var modelLabel = new TextBlock { Margin = new Thickness(0, 8, 0, 4) };
+        var modelLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 10, 0, 4) };
         var model = new TextBox { Text = current.Model };
+        StyleInput(model);
         panel.Children.Add(modelLabel);
         panel.Children.Add(model);
         provider.SelectionChanged += (_, _) => { model.Text = (string)provider.SelectedItem == "gemini" ? "gemini-3.8-flash" : "claude-sonnet-5-5"; };
 
-        var geminiLabel = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 4) };
+        var geminiLabel = new TextBlock { Foreground = textPrimary, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 4) };
         panel.Children.Add(geminiLabel);
         panel.Children.Add(gemini);
 
-        var anthropicLabel = new TextBlock { Margin = new Thickness(0, 12, 0, 4) };
+        var anthropicLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 12, 0, 4) };
         panel.Children.Add(anthropicLabel);
         panel.Children.Add(anthropic);
 
-        var voiceNote = new TextBlock { Foreground = System.Windows.Media.Brushes.DimGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 4) };
+        var voiceNote = new TextBlock { Foreground = textMuted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 4) };
         panel.Children.Add(voiceNote);
 
-        var callsLabel = new TextBlock { Margin = new Thickness(0, 8, 0, 4) };
+        var callsLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 10, 0, 4) };
         var calls = new TextBox { Text = current.MaxCalls.ToString() };
+        StyleInput(calls);
         panel.Children.Add(callsLabel);
         panel.Children.Add(calls);
 
-        var tokensLabel = new TextBlock { Margin = new Thickness(0, 8, 0, 4) };
+        var tokensLabel = new TextBlock { Foreground = textPrimary, Margin = new Thickness(0, 10, 0, 4) };
         var tokens = new TextBox { Text = current.MaxTotalTokens.ToString() };
+        StyleInput(tokens);
         panel.Children.Add(tokensLabel);
         panel.Children.Add(tokens);
 
-        var save = new Button { Margin = new Thickness(0, 20, 0, 0) };
+        var save = new Button
+        {
+            Margin = new Thickness(0, 22, 0, 0),
+            Padding = new Thickness(14, 8, 14, 8),
+            Background = new SolidColorBrush(Color.FromRgb(31, 111, 235)),
+            Foreground = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(56, 139, 253)),
+            FontWeight = FontWeights.SemiBold
+        };
         panel.Children.Add(save);
 
         void RefreshTexts()
