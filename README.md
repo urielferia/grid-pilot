@@ -1,52 +1,151 @@
-# GridPilot
+<div align="center">
 
-Desktop application for Windows x64 and Microsoft 365 Excel. Operates on a visible draft workbook through typed operations, natural-language instructions (with a built-in deterministic local interpreter plus cloud planning via Gemini or Anthropic), and click-to-toggle voice dictation powered by Gemini Multimodal Audio. Exporting requires an explicit user approval over the complete review.
+# 🚀 GridPilot
 
-The user interface includes a built-in **Language** selector (**English** / **Español**) in both the main window header and the Settings dialog.
+**AI-assisted Windows desktop pilot for Microsoft Excel with bilingual UI, deterministic local execution, cloud LLM planning, and secure user-approved exports.**
 
-## Running
+![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue)
+![UI](https://img.shields.io/badge/UI-WPF-0078D4)
+![MCP Server](https://img.shields.io/badge/Protocol-MCP-green)
 
-The self-contained distribution is built into `artifacts/release`. Run `GridPilot.App.exe` while keeping the `server` and `assets` folders next to the executable. Desktop Excel must be installed. No separate .NET installation is required to run the self-contained build.
+</div>
 
-Building from source requires .NET SDK **10.0.403** (`global.json`):
+---
+
+## 📖 Overview
+
+GridPilot is a Windows desktop application that automates and controls Microsoft 365 Excel workbooks using natural language, voice dictation, and structured batch operations. Designed with data safety as a primary requirement, GridPilot isolates working drafts from baseline copies and enforces explicit user verification before exporting any changes to disk.
+
+The system combines an offline, deterministic C# interpreter with optional cloud planning via Google Gemini or Anthropic Claude. It also features a built-in Model Context Protocol (MCP) server for external AI agent integration, full SQLite transaction journaling, multi-level undo support, and real-time detection of manual spreadsheet edits.
+
+## ✨ Features
+
+- **Safe Draft-Based Workflow** — Creates an isolated working draft and read-only baseline for opened workbooks; original files are never modified directly.
+- **Bilingual User Interface** — Dynamic, on-the-fly UI language switching between **English** and **Español** in both the main window and settings.
+- **Hybrid Instruction Engine** — Supports deterministic offline parsing via `LocalInterpreter`, direct JSON batch payloads, and cloud LLM planning (Google Gemini `gemini-3.8-flash` or Anthropic `claude-sonnet-5-5`).
+- **Voice Dictation** — Integrated push-to-talk speech recording (WinMM 16 kHz PCM) transcribed via Gemini Multimodal Audio.
+- **Model Context Protocol (MCP)** — Embedded UTF-8 stdio MCP server (`GridPilot.Mcp`) providing 7 safe read/draft tools with automated orphan Excel process cleanup.
+- **Transactional Audit & Recovery** — Durable SQLite journaling logs all modifications, enabling change comparison diffs, manual edit synchronization, and instant multi-step undo.
+- **DPAPI Credential Protection** — API keys and user preferences are encrypted locally using Windows Data Protection API.
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|:------|:-----------|
+| **Language & SDK** | C# 13 / .NET 10.0 (`net10.0-windows`) |
+| **User Interface** | WPF (Windows Presentation Foundation) |
+| **Excel Interop** | Microsoft Office COM Interop (STA Thread, OLE Message Filter, OpenXML inspection) |
+| **AI Providers** | Google Gemini API (`gemini-3.8-flash`), Anthropic API (`claude-sonnet-5-5`), Local C# Interpreter |
+| **Audio Processing** | WinMM API (16 kHz PCM recording) + Gemini Multimodal Audio |
+| **Storage & Persistence** | SQLite Journaling & Session Checkpoints |
+| **Protocol** | Model Context Protocol (MCP) over UTF-8 stdio |
+
+## ⚡ Quick Start
+
+### Prerequisites
+
+- **Operating System**: Windows x64
+- **Software**: Desktop Microsoft 365 Excel installed
+- **Development Tools** (for building from source): .NET SDK **10.0.403** (specified in `global.json`)
+
+### Installation
+
+Clone the repository and build the project using the PowerShell build script:
 
 ```powershell
+git clone https://github.com/urielferia/grid-pilot.git
+cd grid-pilot
 ./scripts/build.ps1 -Publish
-./artifacts/release/GridPilot.App.exe
 ```
 
-## Workflow
+The self-contained application bundle will be generated in `artifacts/release/`. No standalone .NET runtime installation is required to run the published build.
 
-1. Select your preferred interface language (**English** or **Español**) at the top-right of the window or in **Settings** (`Ajustes`).
-2. Click **Demo template** (`Plantilla demo`) or **Open workbook** (`Abrir libro`). GridPilot takes the saved version of the file, creates a read-only baseline and a working draft, and opens only the draft in a dedicated Excel instance.
-3. Without cloud services, you can use **Local batch** (`Lote local`) with typed JSON operations, or write clear natural-language instructions (in English or Spanish) handled by the deterministic `LocalInterpreter`:
+### Usage
 
-```json
-[
-  {"Kind":"SetValue","Table":"Movimientos","Id":"MOV011","Field":"Cantidad","Value":"3"}
-]
+1. **Launch Application**: Run the compiled binary:
+   ```powershell
+   ./artifacts/release/GridPilot.App.exe
+   ```
+2. **Select Language**: Toggle between **English** and **Español** in the top header or Settings (`Ajustes`).
+3. **Open Workbook**: Click **Demo template** (`Plantilla demo`) or **Open workbook** (`Abrir libro`) to launch a draft instance in Excel.
+4. **Execute Operations**:
+   - **Local Batch**: Submit typed JSON operations into the instruction area:
+     ```json
+     [
+       {"Kind":"SetValue","Table":"Movimientos","Id":"MOV011","Field":"Cantidad","Value":"3"}
+     ]
+     ```
+   - **Natural Language / Voice**: Enter typed instructions or click **Speak** (`Hablar`) to dictate commands.
+5. **Review & Reconcile**: Inspect cell diffs and calculated totals. Use **Refresh review** (`Actualizar revisión`) to capture manual edits made directly in Excel, or **Undo last batch** (`Deshacer último lote`) to revert changes.
+6. **Approve & Export**: Click **Approve and export…** (`Aprobar y exportar…`) to save the finalized workbook to a new location.
+
+## 📁 Project Structure
+
+```
+grid-pilot/
+├── Directory.Build.props
+├── GridPilot.sln
+├── global.json
+├── assets/
+│   ├── GridPilot-Demo.xlsx
+│   ├── expected.json
+│   └── profile.json
+├── docs/
+│   ├── EVALUATION.md
+│   ├── MODELS.md
+│   ├── PROGRESS.md
+│   ├── PROTOCOL.md
+│   └── REFERENCES.md
+├── scripts/
+│   ├── build.ps1
+│   └── test-mcp.ps1
+├── src/
+│   ├── GridPilot.App/           # WPF Desktop Client & Localization
+│   ├── GridPilot.Core/          # Domain Contracts, Diffing & Rule Verification
+│   ├── GridPilot.Excel/         # Excel COM Automation, STA Threading & OpenXML
+│   ├── GridPilot.Mcp/           # Stdio MCP Server Engine
+│   ├── GridPilot.Providers/     # Local Interpreter, Gemini & Anthropic Planners, Voice Input
+│   └── GridPilot.Storage/       # SQLite Journaling, Checkpointing & Recovery
+└── tests/
+    └── GridPilot.Tests/         # Unit & Integration Test Suite
 ```
 
-4. For cloud planning and voice dictation, open **Settings** (`Ajustes`), enter your API key in the protected field, and enable cloud consent. New installations default to Gemini `gemini-3.8-flash`; legacy configurations preserve Anthropic `claude-sonnet-5-5`. Keys are protected via Windows DPAPI for the current Windows user outside the repository.
-5. Type an instruction or click **Speak** (`Hablar`) to start recording (the button turns red and reads **Stop** / `Detener`) and click again when finished. Review the transcription and click **Send** (`Enviar`).
-6. Review cell changes and summary totals in both windows. **Refresh review** (`Actualizar revisión`) detects manual edits in Excel. **Undo last batch** (`Deshacer último lote`) restores the previous checkpoint.
-7. Click **Approve and export…** (`Aprobar y exportar…`), choose a new destination `.xlsx` file, and confirm. Existing files and the original workbook are never overwritten.
+## 🔧 Configuration
 
-## Architecture
+All application settings are managed within the **Settings** (`Ajustes`) window:
 
-- `GridPilot.Core`: Contracts, structural/cell diffing, and independent domain rules verifier.
-- `GridPilot.Excel`: Dedicated STA COM thread, bounded OLE message filter retries, package inspection, and OpenXML snapshots from native Excel copies.
-- `GridPilot.Storage`: Durable SQLite journal, checkpoints, idempotency, crash recovery, explicit approval, and export.
-- `GridPilot.Mcp`: Local JSON-RPC MCP server over UTF-8 stdio with orphan Excel process cleanup (`Owner.cs`). Exposes 7 read/draft tools and never exposes approval or export as model tools.
-- `GridPilot.Providers`: Deterministic bilingual `LocalInterpreter`, `GeminiPlanner`, `AnthropicPlanner`, in-memory `SpeechInput` (WinMM 16 kHz PCM + Gemini Multimodal Audio), and DPAPI credential storage.
-- `GridPilot.App`: WPF desktop client with dynamic English/Spanish UI localization.
+- **AI Provider**: Choose between **Gemini** (`gemini-3.8-flash`) or **Anthropic** (`claude-sonnet-5-5`).
+- **API Credentials**: Keys are entered in masked fields and encrypted locally via Windows DPAPI.
+- **Cloud Consent**: Explicit opt-in toggle required before making outward requests to cloud provider APIs.
 
-## Tests
+## 🧪 Testing
+
+GridPilot includes unit tests, Excel interop verification, and MCP server smoke tests.
 
 ```powershell
+# Set local CLI environment variables
 $env:DOTNET_CLI_HOME="$PWD/.tools/cli"
 $env:NUGET_PACKAGES="$PWD/.tools/packages"
+
+# Run core unit tests
 ./.tools/dotnet/dotnet.exe run --project tests/GridPilot.Tests -c Release
+
+# Run Excel COM integration tests (requires Excel installed)
 ./.tools/dotnet/dotnet.exe run --project tests/GridPilot.Tests -c Release -- --excel
+
+# Run MCP server smoke test suite
 ./scripts/test-mcp.ps1 -Excel -Published
 ```
+
+## 🤝 Contributing
+
+Contributions to GridPilot are welcome! Please follow these guidelines:
+
+1. Open an issue to discuss proposed changes prior to submitting a pull request.
+2. Ensure all existing test suites (`GridPilot.Tests` and `test-mcp.ps1`) pass.
+3. Maintain existing formatting standards and bilingual localization support.
+
+## 📄 License
+
+See source files for licensing details.
